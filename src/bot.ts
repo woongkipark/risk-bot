@@ -47,16 +47,25 @@ export function startBot(): void {
       if (targetChannelId && message.channelId !== targetChannelId) return;
       if (!query) return;
 
-      const response = await agent.generate(query, {
-        memory: {
-          thread: message.channelId,
-          resource: "signal-risk-bot",
-        },
-      });
+      await message.channel.sendTyping();
+      const typingInterval = setInterval(() => {
+        message.channel.sendTyping().catch(() => {});
+      }, 8000);
 
-      const text = typeof response.text === "string" ? response.text.trim() : "";
-      const out = truncate(text || "응답을 생성하지 못했습니다.", 1800);
-      await message.reply(out);
+      try {
+        const response = await agent.generate(query, {
+          memory: {
+            thread: message.channelId,
+            resource: "signal-risk-bot",
+          },
+        });
+
+        const text = typeof response.text === "string" ? response.text.trim() : "";
+        const out = truncate(text || "응답을 생성하지 못했습니다.", 1800);
+        await message.reply(out);
+      } finally {
+        clearInterval(typingInterval);
+      }
     } catch (error) {
       await message.reply("처리 중 오류가 발생했습니다. 잠시 후 다시 시도해줘.");
       console.error(error);
