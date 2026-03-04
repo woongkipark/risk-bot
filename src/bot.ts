@@ -40,7 +40,7 @@ export function startBot(): void {
   client.on("messageCreate", async (message) => {
     try {
       const query = message.content.trim();
-      const isAutoTrigger = query.includes("#AUTO_COLLECT_BRIEFING");
+      const isAutoTrigger = query.startsWith("#AUTO_");
 
       // 일반 메시지: 봇 발신 무시. 트리거 메시지: 봇/webhook 허용
       if (message.author.bot && !isAutoTrigger) return;
