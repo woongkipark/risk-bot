@@ -1,9 +1,25 @@
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 import { MastraClient } from "@mastra/client-js";
 
-function truncate(text: string, maxChars: number): string {
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, maxChars - 20)}\n... (truncated)`;
+import type { Message } from "discord.js";
+
+const CHUNK_SIZE = 1200;
+
+async function sendLongMessage(message: Message, text: string): Promise<void> {
+  if (text.length <= CHUNK_SIZE) {
+    await message.reply(text);
+    return;
+  }
+  const chunks: string[] = [];
+  for (let i = 0; i < text.length; i += CHUNK_SIZE) {
+    chunks.push(text.slice(i, i + CHUNK_SIZE));
+  }
+  await message.reply(chunks[0]);
+  for (let i = 1; i < chunks.length; i++) {
+    if ("send" in message.channel) {
+      await message.channel.send(chunks[i]);
+    }
+  }
 }
 
 export function startBot(): void {
@@ -61,8 +77,7 @@ export function startBot(): void {
         });
 
         const text = typeof response.text === "string" ? response.text.trim() : "";
-        const out = truncate(text || "응답을 생성하지 못했습니다.", 1800);
-        await message.reply(out);
+        await sendLongMessage(message, text || "응답을 생성하지 못했습니다.");
       } finally {
         clearInterval(typingInterval);
       }
