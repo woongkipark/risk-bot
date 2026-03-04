@@ -1,0 +1,23 @@
+{
+  "name": "risk-bot",
+  "version": "0.1.0",
+  "description": "Discord bot gateway for Signal Risk Copilot (Mastra Cloud)",
+  "type": "module",
+  "main": "dist/start.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/start.js",
+    "dev": "tsx src/start.ts"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@mastra/client-js": "^1.7.1",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
