@@ -39,10 +39,12 @@ export function startBot(): void {
 
   client.on("messageCreate", async (message) => {
     try {
-      if (message.author.bot) return;
-      if (targetChannelId && message.channelId !== targetChannelId) return;
-
       const query = message.content.trim();
+      const isAutoTrigger = query.includes("#AUTO_COLLECT_BRIEFING");
+
+      // 일반 메시지: 봇 발신 무시. 트리거 메시지: 봇/webhook 허용
+      if (message.author.bot && !isAutoTrigger) return;
+      if (targetChannelId && message.channelId !== targetChannelId) return;
       if (!query) return;
 
       const response = await agent.generate(query, {
