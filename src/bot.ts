@@ -28,6 +28,23 @@ function textMentionsNewImage(text: string): boolean {
   return IMAGE_KEYWORDS.test(text);
 }
 
+function extractTickers(text: string): string[] {
+  const matches = text.matchAll(/\(([A-Z]{1,5})\)/g);
+  const seen = new Set<string>();
+  for (const m of matches) {
+    seen.add(m[1]);
+  }
+  return [...seen];
+}
+
+function appendYahooLinks(text: string, tickers: string[]): string {
+  if (tickers.length === 0) return text;
+  const links = tickers
+    .map((t) => `[${t} - Yahoo Finance](https://finance.yahoo.com/quote/${t}/)`)
+    .join("\n");
+  return `${text}\n\n📊 **실시간 차트**\n${links}`;
+}
+
 function cleanImagePlaceholders(text: string): string {
   return text
     .replace(/\[.*?(?:이미지|차트|image|chart).*?\]/gi, "")
@@ -121,6 +138,8 @@ export function startBot(): void {
           if (files.length > 0) {
             text = cleanImagePlaceholders(text);
           }
+          const tickers = extractTickers(text);
+          text = appendYahooLinks(text, tickers);
         }
 
         await sendLongMessage(message, text || "응답을 생성하지 못했습니다.", files);
