@@ -118,6 +118,7 @@ export function startBot(): void {
         // 현재 턴의 toolResults만 수집
         const currentToolResults: unknown[] = [];
         const response = await agent.generate(query, {
+          maxSteps: isAutoTrigger ? 10 : 6,
           memory: {
             thread: message.channelId,
             resource: "signal-risk-bot",
