@@ -1,20 +1,42 @@
-import { Client, GatewayIntentBits, Partials } from "discord.js";
+import { Client, GatewayIntentBits, Partials, AttachmentBuilder } from "discord.js";
 import { MastraClient } from "@mastra/client-js";
 
 import type { Message } from "discord.js";
 
 const CHUNK_SIZE = 1200;
 
-async function sendLongMessage(message: Message, text: string): Promise<void> {
+function extractBase64Images(obj: unknown): Buffer[] {
+  const images: Buffer[] = [];
+  const json = JSON.stringify(obj);
+  const regex = /data:image\/[a-z]+;base64,([A-Za-z0-9+/=]+)/g;
+  let match;
+  while ((match = regex.exec(json)) !== null) {
+    images.push(Buffer.from(match[1], "base64"));
+  }
+  return images;
+}
+
+function cleanImagePlaceholders(text: string): string {
+  return text
+    .replace(/\[.*?(?:이미지|차트|image|chart).*?\]/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+async function sendLongMessage(
+  message: Message,
+  text: string,
+  files: AttachmentBuilder[] = [],
+): Promise<void> {
   if (text.length <= CHUNK_SIZE) {
-    await message.reply(text);
+    await message.reply({ content: text, files });
     return;
   }
   const chunks: string[] = [];
   for (let i = 0; i < text.length; i += CHUNK_SIZE) {
     chunks.push(text.slice(i, i + CHUNK_SIZE));
   }
-  await message.reply(chunks[0]);
+  await message.reply({ content: chunks[0], files });
   for (let i = 1; i < chunks.length; i++) {
     if ("send" in message.channel) {
       await message.channel.send(chunks[i]);
@@ -76,8 +98,17 @@ export function startBot(): void {
           },
         });
 
-        const text = typeof response.text === "string" ? response.text.trim() : "";
-        await sendLongMessage(message, text || "응답을 생성하지 못했습니다.");
+        const images = extractBase64Images(response);
+        const files = images.map(
+          (buf, i) => new AttachmentBuilder(buf, { name: `chart_${i + 1}.jpg` }),
+        );
+
+        let text = typeof response.text === "string" ? response.text.trim() : "";
+        if (files.length > 0) {
+          text = cleanImagePlaceholders(text);
+        }
+
+        await sendLongMessage(message, text || "응답을 생성하지 못했습니다.", files);
       } finally {
         clearInterval(typingInterval);
       }
