@@ -5,13 +5,23 @@ import type { Message } from "discord.js";
 
 const CHUNK_SIZE = 1200;
 
+const MIN_IMAGE_BASE64_LEN = 1000;
+const MAX_DISCORD_FILES = 10;
+
 function extractBase64Images(obj: unknown): Buffer[] {
-  const images: Buffer[] = [];
   const json = JSON.stringify(obj);
-  const regex = /data:image\/[a-z]+;base64,([A-Za-z0-9+/=]+)/g;
+  const regex = /data:image\/[a-z]+;base64,([A-Za-z0-9+/=]{1000,})/g;
+  const images: Buffer[] = [];
+  const seen = new Set<string>();
   let match;
   while ((match = regex.exec(json)) !== null) {
-    images.push(Buffer.from(match[1], "base64"));
+    const b64 = match[1];
+    if (b64.length < MIN_IMAGE_BASE64_LEN) continue;
+    const key = b64.slice(0, 64);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    images.push(Buffer.from(b64, "base64"));
+    if (images.length >= MAX_DISCORD_FILES) break;
   }
   return images;
 }
