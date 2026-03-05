@@ -4,34 +4,29 @@ import { MastraClient } from "@mastra/client-js";
 import type { Message } from "discord.js";
 
 const CHUNK_SIZE = 1200;
-
 const MAX_DISCORD_FILES = 10;
-const IMAGE_KEYWORDS = /차트|캔들|candle|chart|그래프|graph/i;
 
-function extractBase64Images(obj: unknown): Buffer[] {
-  const json = JSON.stringify(obj);
-  const regex = /data:image\/[a-z]+;base64,([A-Za-z0-9+/=]{1000,})/g;
+function extractImagesFromToolResults(toolResults: unknown[]): Buffer[] {
   const images: Buffer[] = [];
   const seen = new Set<string>();
-  let match;
-  while ((match = regex.exec(json)) !== null) {
-    const key = match[1].slice(0, 64);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    images.push(Buffer.from(match[1], "base64"));
-    if (images.length >= MAX_DISCORD_FILES) break;
+  for (const result of toolResults) {
+    const json = JSON.stringify(result);
+    const regex = /data:image\/[a-z]+;base64,([A-Za-z0-9+/=]{1000,})/g;
+    let match;
+    while ((match = regex.exec(json)) !== null) {
+      const key = match[1].slice(0, 64);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      images.push(Buffer.from(match[1], "base64"));
+      if (images.length >= MAX_DISCORD_FILES) return images;
+    }
   }
   return images;
 }
 
-function textMentionsNewImage(text: string): boolean {
-  return IMAGE_KEYWORDS.test(text);
-}
-
 function extractTickers(text: string): string[] {
-  const matches = text.matchAll(/\(([A-Z]{1,5})\)/g);
   const seen = new Set<string>();
-  for (const m of matches) {
+  for (const m of text.matchAll(/\(([A-Z]{1,5})\)/g)) {
     seen.add(m[1]);
   }
   return [...seen];
@@ -120,24 +115,30 @@ export function startBot(): void {
       }, 8000);
 
       try {
+        // 현재 턴의 toolResults만 수집
+        const currentToolResults: unknown[] = [];
         const response = await agent.generate(query, {
           memory: {
             thread: message.channelId,
             resource: "signal-risk-bot",
           },
+          onStepFinish: ({ toolResults }: { toolResults?: unknown[] }) => {
+            if (toolResults && Array.isArray(toolResults)) {
+              currentToolResults.push(...toolResults);
+            }
+          },
         });
 
         let text = typeof response.text === "string" ? response.text.trim() : "";
 
-        let files: AttachmentBuilder[] = [];
-        if (textMentionsNewImage(text)) {
-          const images = extractBase64Images(response);
-          files = images.map(
-            (buf, i) => new AttachmentBuilder(buf, { name: `chart_${i + 1}.jpg` }),
-          );
-          if (files.length > 0) {
-            text = cleanImagePlaceholders(text);
-          }
+        // 현재 턴의 toolResults에서만 이미지 추출
+        const images = extractImagesFromToolResults(currentToolResults);
+        const files = images.map(
+          (buf, i) => new AttachmentBuilder(buf, { name: `chart_${i + 1}.jpg` }),
+        );
+
+        if (files.length > 0) {
+          text = cleanImagePlaceholders(text);
           const tickers = extractTickers(text);
           text = appendYahooLinks(text, tickers);
         }
