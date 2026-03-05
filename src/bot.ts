@@ -5,8 +5,8 @@ import type { Message } from "discord.js";
 
 const CHUNK_SIZE = 1200;
 
-const MIN_IMAGE_BASE64_LEN = 1000;
 const MAX_DISCORD_FILES = 10;
+const IMAGE_KEYWORDS = /차트|캔들|candle|chart|그래프|graph/i;
 
 function extractBase64Images(obj: unknown): Buffer[] {
   const json = JSON.stringify(obj);
@@ -15,15 +15,17 @@ function extractBase64Images(obj: unknown): Buffer[] {
   const seen = new Set<string>();
   let match;
   while ((match = regex.exec(json)) !== null) {
-    const b64 = match[1];
-    if (b64.length < MIN_IMAGE_BASE64_LEN) continue;
-    const key = b64.slice(0, 64);
+    const key = match[1].slice(0, 64);
     if (seen.has(key)) continue;
     seen.add(key);
-    images.push(Buffer.from(b64, "base64"));
+    images.push(Buffer.from(match[1], "base64"));
     if (images.length >= MAX_DISCORD_FILES) break;
   }
   return images;
+}
+
+function textMentionsNewImage(text: string): boolean {
+  return IMAGE_KEYWORDS.test(text);
 }
 
 function cleanImagePlaceholders(text: string): string {
@@ -108,14 +110,17 @@ export function startBot(): void {
           },
         });
 
-        const images = extractBase64Images(response);
-        const files = images.map(
-          (buf, i) => new AttachmentBuilder(buf, { name: `chart_${i + 1}.jpg` }),
-        );
-
         let text = typeof response.text === "string" ? response.text.trim() : "";
-        if (files.length > 0) {
-          text = cleanImagePlaceholders(text);
+
+        let files: AttachmentBuilder[] = [];
+        if (textMentionsNewImage(text)) {
+          const images = extractBase64Images(response);
+          files = images.map(
+            (buf, i) => new AttachmentBuilder(buf, { name: `chart_${i + 1}.jpg` }),
+          );
+          if (files.length > 0) {
+            text = cleanImagePlaceholders(text);
+          }
         }
 
         await sendLongMessage(message, text || "응답을 생성하지 못했습니다.", files);
